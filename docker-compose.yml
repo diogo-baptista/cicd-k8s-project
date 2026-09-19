@@ -1,0 +1,18 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - ENV=development
+    # volumes:
+    #   - .:/app   # uncomment only for live-reload dev; omit for prod-like testing
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./app/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    depends_on:
+      - api
