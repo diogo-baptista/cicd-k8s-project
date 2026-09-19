@@ -4,7 +4,6 @@ from fastapi import FastAPI, Request
 from prometheus_client import Counter, Histogram, generate_latest
 from starlette.responses import Response
 
-
 app = FastAPI(
     title="CI/CD Small demo API",
     version="1.0.0",
