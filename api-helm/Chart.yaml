@@ -1,0 +1,6 @@
+apiVersion: v2
+name: api-helm
+description: Helm chart for the CI/CD portfolio FastAPI service
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

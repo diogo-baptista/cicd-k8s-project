@@ -1,0 +1,13 @@
+The API has been deployed as {{ include "api-helm.fullname" . }}.
+
+To access it locally with port-forwarding:
+
+  kubectl port-forward service/{{ include "api-helm.fullname" . }} 8000:{{ .Values.service.port }}
+
+Then visit http://127.0.0.1:8000/healthz.
+
+{{- if .Values.serviceMonitor.enabled }}
+ServiceMonitor is enabled and expects Prometheus Operator CRDs to be installed.
+{{- else }}
+ServiceMonitor is disabled. Set serviceMonitor.enabled=true when Prometheus Operator is available.
+{{- end }}
