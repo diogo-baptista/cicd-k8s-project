@@ -60,6 +60,7 @@ async def healthz():
     }
 
 
+# metrics that are going to be exposed to Prometheus
 @app.get("/metrics")
 async def metrics():
     return Response(
