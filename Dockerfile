@@ -1,4 +1,4 @@
-# Use an official Python image as a starting point
+# Get the Python image
 FROM python:3.12-slim
 
 # Set the folder inside the container where commands will run

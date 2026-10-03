@@ -6,7 +6,7 @@ services:
     environment:
       - ENV=development
     # volumes:
-    #   - .:/app   # uncomment only for live-reload dev; omit for prod-like testing
+    #   - .:/app   # uncomment only for live-reload dev;
 
   prometheus:
     image: prom/prometheus:latest
