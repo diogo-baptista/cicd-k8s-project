@@ -1,138 +1,152 @@
-# CI/CD Kubernetes Project
+# CI/CD Kubernetes Portfolio Project
 
-A production-minded DevOps portfolio project built around a small FastAPI service. The project demonstrates how application code moves through automated quality checks, containerization, security scanning, observability, and eventually Kubernetes deployment.
+This project is a small but realistic DevOps portfolio application built around a FastAPI service. The goal is to demonstrate the full delivery lifecycle: code quality checks, Docker packaging, security scanning, GitHub Actions automation, registry publishing, and Helm-based deployment patterns.
 
-The application is intentionally small. The focus is the delivery platform and the operational decisions around it.
+The app itself is intentionally simple. The real value is the delivery platform and operational decisions around it.
 
-## Current Status
+## Current status
 
-Implemented:
+The project includes:
 
-- FastAPI HTTP service
-- Liveness-style health endpoint at `/healthz`
-- Prometheus metrics at `/metrics`
-- Request count and latency instrumentation
+- FastAPI app with health and metrics endpoints
+- Prometheus instrumentation for request count and latency
 - Docker image build
-- Local Docker Compose environment with Prometheus
-- Pytest API tests
+- Local Docker Compose stack with API, Prometheus, and Grafana
+- Pytest coverage for the main API endpoints
 - Ruff linting and formatting checks
-- GitHub Actions CI
-- Trivy container vulnerability scanning
-- Separate runtime and development dependencies
-- Helm chart with Kubernetes health probes and optional ServiceMonitor
+- GitHub Actions CI for validation on `dev` and `main`
+- Trivy vulnerability scanning for the container image
+- GHCR publishing for dev preview images and main release artifacts
+- Helm chart packaging for Kubernetes deployments
+- Branch-based release flow with dev and main environments in mind
 
-Planned next:
+Planned next steps:
 
-- Kubernetes Deployment and Service manifests
-- Helm chart
-- Local Kubernetes deployment with kind or k3d
-- Readiness and liveness probes in Kubernetes
-- Grafana dashboards and alert rules
-- Container hardening and non-root execution
-- Image publishing and release automation
-- Terraform-managed cloud infrastructure
+- Deploy to a local Kubernetes cluster using kind or k3d
+- Deploy the GHCR image through Helm into a dev cluster
+- Add production-style environment values and secrets handling
+- Add further cloud and Azure automation later
 
-## Architecture
+## Why this project matters
+
+This repo demonstrates:
+
+- code validation in CI
+- security scanning before deployment
+- container packaging
+- image registry publishing
+- environment branching strategy
+- Kubernetes deployment templating with Helm
+- Observability with Prometheus and Grafana
+
+## Architecture overview
 
 ```mermaid
 flowchart LR
-    Developer --> GitHub
+    Dev[Developer] --> GitHub[GitHub]
     GitHub --> CI[GitHub Actions]
-    CI --> Tests[Tests and Ruff]
-    CI --> Image[Docker image]
-    Image --> Trivy[Trivy scan]
-    Developer --> Compose[Docker Compose]
-    Compose --> API[FastAPI API]
-    Compose --> Prometheus[Prometheus]
-    Prometheus --> API
+    CI --> Lint[Lint + tests]
+    CI --> Scan[Trivy scan]
+    CI --> Docker[Docker build]
+    Docker --> GHCR[GHCR]
+    GHCR --> K8s[Kubernetes]
+    K8s --> App[FastAPI app]
+    App --> Prometheus[Prometheus]
+    Prometheus --> Grafana[Grafana]
 ```
 
-## Repository Structure
+## Repository structure
 
 ```text
 .
-├── .github/workflows/ci.yml       # GitHub Actions CI pipeline
+├── .github/
+│   └── workflows/
+│       └── ci.yml                 # CI workflow for dev/main branches
 ├── app/
 │   ├── __init__.py
 │   ├── main.py                    # FastAPI app and metrics middleware
-│   └── prometheus/prometheus.yml  # Prometheus scrape configuration
-├── api-helm/                       # Kubernetes deployment chart
+│   └── prometheus/
+│       └── prometheus.yml         # Prometheus scrape configuration
+├── api-helm/                      # Helm chart for Kubernetes deployment
 │   ├── Chart.yaml
 │   ├── values.yaml
 │   └── templates/
-├── tests/test_main.py             # API tests
-├── Dockerfile                     # Runtime container image
-├── docker-compose.yml             # Local API, Prometheus, and Grafana stack
-├── requirements.txt               # Runtime dependencies only
-├── requirements-dev.txt           # Runtime plus test and lint dependencies
-├── .env.example                   # Local environment variable template
-└── pytest.ini                     # Pytest discovery and import configuration
+├── tests/
+│   └── test_main.py               # API tests
+├── .env.example                   # Local example environment file
+├── .gitignore
+├── Dockerfile                     # Runtime image definition
+├── docker-compose.yml             # Local API + monitoring stack
+├── pytest.ini                     # Pytest configuration
+├── README.md                      # Project documentation
+├── requirements.txt               # Runtime dependencies
+├── requirements-dev.txt            # Dev/test/lint dependencies
+└── k8s/                           # Kubernetes-related notes and future deployment config
 ```
 
 ## Prerequisites
 
-Install the following tools:
+Install the following tools locally:
 
-- Python 3.12 or newer
-- Docker Engine and Docker Compose
+- Python 3.12+
+- Docker Engine
+- Docker Compose
 - Git
+- Helm (for chart validation and local template rendering)
 
-GitHub Actions uses Python 3.12 to match the Python version used by the Docker image.
+The project intentionally uses Python 3.12 to match the runtime image and CI environment.
 
-## Local Development
+## Local development
 
-Create a virtual environment and install development dependencies:
+Create and activate a virtual environment:
 
 ```bash
 python3 -m venv .venv
-.venv/bin/python -m pip install --upgrade pip
-.venv/bin/python -m pip install -r requirements-dev.txt
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements-dev.txt
 ```
 
-Run the API locally:
+Run the app locally:
 
 ```bash
-.venv/bin/uvicorn app.main:app --reload
+uvicorn app.main:app --reload
 ```
 
-The API is then available at:
+Available routes:
 
 - http://localhost:8000/
 - http://localhost:8000/healthz
 - http://localhost:8000/metrics
 - http://localhost:8000/docs
 
-## Quality Checks
-
-Run the same checks locally that run in CI:
+Run the project checks locally:
 
 ```bash
-.venv/bin/ruff check .
-.venv/bin/ruff format --check .
-.venv/bin/pytest -q
+ruff check .
+ruff format --check .
+pytest -q
 ```
-
-The test suite currently covers the root endpoint, health endpoint, and metrics endpoint.
 
 ## Docker
 
-Build the runtime image:
+Build the image:
 
 ```bash
 docker build --tag cicd-api:local .
 ```
 
-Run it:
+Run the image locally:
 
 ```bash
-docker run --rm --publish 8000:8000 cicd-api:local
+docker run --rm -p 8000:8000 cicd-api:local
 ```
 
-The Dockerfile installs only `requirements.txt`. Test and lint tools are deliberately excluded from the production image to reduce image size.
+This image intentionally contains only the runtime dependencies needed for the application. Lint and test tooling live in `requirements-dev.txt` and are not part of the runtime image.
 
-## Docker Compose, Prometheus, and Grafana
+## Local observability with Docker Compose
 
-Start the local stack:
+Start the full local stack:
 
 ```bash
 docker compose up --build
@@ -140,18 +154,19 @@ docker compose up --build
 
 Services:
 
-- API: http://localhost:8000
+- FastAPI app: http://localhost:8000
 - Prometheus: http://localhost:9090
 - Grafana: http://localhost:3000
 
-Prometheus scrapes the API every 15 seconds using the configuration in `app/prometheus/prometheus.yml`.
-Grafana is provisioned with Prometheus as its default datasource. Configure local credentials before starting the stack:
+The stack uses the Prometheus configuration in `app/prometheus/prometheus.yml` and a Grafana datasource provisioned for Prometheus.
+
+Create a local `.env` file from the example file:
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` and replace the example password. Log in using the values from that file. `.env` is ignored by Git and must never contain production credentials in a committed change.
+Then update secrets or local values as needed. Do not commit production credentials.
 
 Stop the stack:
 
@@ -159,108 +174,120 @@ Stop the stack:
 docker compose down
 ```
 
-## CI Pipeline
+## GitHub Actions CI workflow
 
-The workflow is defined in `.github/workflows/ci.yml`. It runs for pull requests and pushes to `main`.
+The workflow is defined in `.github/workflows/ci.yml` and is set up for both `dev` and `main` branches.
 
-Pipeline stages:
+### Build and validation job
 
-1. Check out the repository.
-2. Set up Python 3.12.
-3. Install `requirements-dev.txt`.
-4. Run Ruff lint checks.
-5. Verify formatting with Ruff.
-6. Run the test suite.
-7. Build the Docker image.
-8. Scan the image with Trivy.
-9. Lint and render the Helm chart.
+On both branches, the workflow runs:
 
-The image is tagged with the commit SHA:
+1. checkout repository
+2. set up Python 3.12
+3. install dev dependencies
+4. run Ruff lint checks
+5. run Ruff format checks
+6. run pytest
+7. build the Docker image
+8. scan the image with Trivy
+9. lint and template the Helm chart
 
-```yaml
-docker build --tag cicd-api:${{ github.sha }} .
-```
+### Publish job
 
-The same tag is passed to Trivy. This ensures that the scanner checks the exact image built by that workflow run instead of an ambiguous tag such as `latest`.
+The publish job runs on pushes to `dev` and `main` and does the following:
 
-The workflow uses:
+- `dev` branch:
+  - builds the app image
+  - pushes a `:dev` image to GHCR for preview testing
+- `main` branch:
+  - builds the release image
+  - pushes the image to GHCR using the commit SHA tag
+  - packages the Helm chart
+  - pushes the chart to GHCR as an OCI artifact
 
-```yaml
-permissions:
-  contents: read
-```
-
-This follows least privilege because the current pipeline only reads the repository. Future publishing or cloud deployment jobs should receive additional permissions only at the job level when required.
-
-## Security Decisions
+## Security and quality decisions
 
 ### Dependency separation
 
-`requirements.txt` contains packages required to run the application. `requirements-dev.txt` includes those packages plus pytest, httpx, and Ruff. This keeps development tooling out of the production image and reduces its attack surface.
+The app uses:
+
+- `requirements.txt` for runtime dependencies
+- `requirements-dev.txt` for dev, lint, and test dependencies
+
+This keeps the runtime image smaller and reduces the attack surface.
 
 ### Dependency pinning
 
-Application dependencies are pinned to known versions. This makes local, CI, and container builds more reproducible and allows vulnerability findings to be traced to a specific installed version.
+Dependencies are pinned to known versions to keep builds reproducible and easy to debug. This makes vulnerability findings easier to trace to the exact installed version.
 
-### Vulnerability gate
+### Trivy security gate
 
-Trivy scans operating system and Python dependencies. The workflow fails for HIGH or CRITICAL vulnerabilities when a fixed version is available:
+The pipeline fails if Trivy finds HIGH or CRITICAL vulnerabilities that have a fix available. This is a good default for a portfolio project because it demonstrates security hygiene without introducing noisy false positives.
 
-```yaml
-severity: CRITICAL,HIGH
-exit-code: "1"
-ignore-unfixed: true
-```
+### Base image refresh
 
-`ignore-unfixed: true` prevents the pipeline from failing on vulnerabilities for which no upstream fix exists. This should be reviewed deliberately rather than treated as a permanent exception.
+The Dockerfile refreshes Debian packages before installing Python app dependencies. This addresses base-image vulnerabilities such as stale OS libraries found by Trivy.
 
-### Immutable image identity
+## Helm deployment pattern
 
-Commit SHA tags make images traceable to source code. The SHA tag is preferable for deployment automation because it does not silently move to different source code.
+The chart under `api-helm/` is designed to package the app for Kubernetes. The chart is used to define reusable deployment values and templates rather than creating a one-off custom deployment every time.
 
-## Observability
+It includes:
 
-The application exposes Prometheus metrics through `/metrics` and records:
-
-- Total HTTP requests, labelled by method, endpoint, and status
-- Request latency, labelled by method and endpoint
-
-This provides the foundation for service-level indicators such as request rate, error rate, and latency. The next observability milestone is adding Grafana dashboards and alert rules.
-
-## Kubernetes Deployment
-
-The API chart is in `api-helm/`. It packages the Kubernetes configuration while the Dockerfile continues to package the application.
-
-The chart provides:
-
-- Deployment with two replicas
+- Deployment
 - Service
-- Readiness probe using `/healthz`
-- Liveness probe using `/healthz`
-- Resource requests and limits
-- Optional HorizontalPodAutoscaler
-- Optional ServiceMonitor for Prometheus Operator
+- health/readiness probes
+- resource requests and limits
+- configurable image values
+- structure ready for future environment overlays
 
-Lint and render the chart locally:
+Typical usage:
 
 ```bash
 helm lint api-helm
-helm template api-release api-helm --set image.tag=<commit-sha>
+helm template api-release api-helm --set image.tag=dev
 ```
 
-Enable metrics scraping when `kube-prometheus-stack` is installed:
+For a real deployment, you would point the chart to a registry image such as:
 
 ```bash
-helm upgrade --install api-release api-helm \
-  --set image.tag=<commit-sha> \
-  --set serviceMonitor.enabled=true
+ghcr.io/<your-user>/cicd-api:dev
 ```
 
-The ServiceMonitor requires the Prometheus Operator CRDs. With a Prometheus setup that does not use the operator, configure Prometheus to discover the API Service directly instead.
+or the commit SHA tag on `main`.
 
-Next deployment milestones are a local kind or k3d cluster, NetworkPolicy, and a GitOps or release workflow.
+## Why Helm matters
 
-A future deployment flow will build and scan an image in CI, publish it with an immutable commit tag, and deploy that tag through Helm or GitOps.
+Helm is not what runs the container. Kubernetes does that.
+
+Helm makes Kubernetes deployments more robust and repeatable by giving you:
+
+- value-driven configuration
+- environment-specific overlays
+- versioned deployment artifacts
+- easier rollback and upgrades
+- cleaner operational workflows
+
+In other words, the image is the app artifact, Kubernetes runs the app, and Helm helps manage the deployment configuration.
+
+## Observability
+
+The application exposes Prometheus-compatible metrics at `/metrics` and emits:
+
+- total request count by method, path, and status
+- request latency by method and endpoint
+
+This gives a basic foundation for service monitoring and later dashboarding in Grafana.
+
+## Roadmap
+
+Next practical milestones in this project:
+
+1. deploy to local Kubernetes with kind or k3d
+2. deploy the GHCR image via Helm
+3. test dev cluster behavior before merging to main
+4. add richer environment values and secrets management
+5. expand the application and chart to support a more production-like setup
 
 ## Design Goals
 
@@ -302,12 +329,9 @@ docker compose down
 
 ## Portfolio Demonstration
 
-A useful interview demonstration is:
-
 1. Open a pull request with a code change.
 2. Show Ruff and pytest running in GitHub Actions.
 3. Show the Docker image being built with the commit SHA.
 4. Show Trivy blocking a vulnerable dependency.
 5. Update the dependency and rerun the pipeline successfully.
 6. Show Prometheus scraping `/metrics` locally.
-7. Deploy the same immutable image to Kubernetes as the next project milestone.
