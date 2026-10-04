@@ -6,7 +6,7 @@ The app itself is intentionally simple. The real value is the delivery platform 
 
 ## Current status
 
-The project is in a strong portfolio-ready state and includes:
+The project includes:
 
 - FastAPI app with health and metrics endpoints
 - Prometheus instrumentation for request count and latency
@@ -29,7 +29,7 @@ Planned next steps:
 
 ## Why this project matters
 
-This repo demonstrates the most important DevOps concepts for a junior-to-mid-level portfolio:
+This repo demonstrates:
 
 - code validation in CI
 - security scanning before deployment
@@ -37,7 +37,7 @@ This repo demonstrates the most important DevOps concepts for a junior-to-mid-le
 - image registry publishing
 - environment branching strategy
 - Kubernetes deployment templating with Helm
-- observability with Prometheus and Grafana
+- Observability with Prometheus and Grafana
 
 ## Architecture overview
 
@@ -205,11 +205,6 @@ The publish job runs on pushes to `dev` and `main` and does the following:
   - packages the Helm chart
   - pushes the chart to GHCR as an OCI artifact
 
-This gives a practical branch strategy:
-
-- `dev` = active development and preview validation
-- `main` = release-ready branch and production-oriented publishing
-
 ## Security and quality decisions
 
 ### Dependency separation
@@ -231,13 +226,13 @@ The pipeline fails if Trivy finds HIGH or CRITICAL vulnerabilities that have a f
 
 ### Base image refresh
 
-The Dockerfile refreshes Debian packages before installing Python app dependencies. This addresses base-image vulnerabilities such as stale OS libraries found by Trivy and is a realistic fix used in real-world container builds.
+The Dockerfile refreshes Debian packages before installing Python app dependencies. This addresses base-image vulnerabilities such as stale OS libraries found by Trivy.
 
 ## Helm deployment pattern
 
 The chart under `api-helm/` is designed to package the app for Kubernetes. The chart is used to define reusable deployment values and templates rather than creating a one-off custom deployment every time.
 
-It includes the parts typically expected in a portfolio project:
+It includes:
 
 - Deployment
 - Service
@@ -294,23 +289,6 @@ Next practical milestones in this project:
 4. add richer environment values and secrets management
 5. expand the application and chart to support a more production-like setup
 
-## Project goal
-
-This is not just a toy API. It is structured to look and behave like a small but credible DevOps portfolio project with:
-
-- app code
-- CI validation
-- container security
-- registry publishing
-- Kubernetes packaging
-- modern branch strategy
-
-That makes it suitable for demonstrating DevOps fundamentals in a real-world interview or portfolio review.
-
-Next deployment milestones are a local kind or k3d cluster, NetworkPolicy, and a GitOps or release workflow.
-
-A future deployment flow will build and scan an image in CI, publish it with an immutable commit tag, and deploy that tag through Helm or GitOps.
-
 ## Design Goals
 
 This project is designed to demonstrate the following DevOps practices:
@@ -351,12 +329,9 @@ docker compose down
 
 ## Portfolio Demonstration
 
-A useful interview demonstration is:
-
 1. Open a pull request with a code change.
 2. Show Ruff and pytest running in GitHub Actions.
 3. Show the Docker image being built with the commit SHA.
 4. Show Trivy blocking a vulnerable dependency.
 5. Update the dependency and rerun the pipeline successfully.
 6. Show Prometheus scraping `/metrics` locally.
-7. Deploy the same immutable image to Kubernetes as the next project milestone.
