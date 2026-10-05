@@ -22,5 +22,8 @@ COPY . .
 # Expose the port that FastAPI runs on
 EXPOSE 8000
 
+# Run the API without root privileges
+USER 10001:10001
+
 # The command to start the API when the container boots up
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
