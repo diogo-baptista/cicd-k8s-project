@@ -1,3 +1,4 @@
+---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -11,12 +12,12 @@ spec:
     path: api-helm
     helm:
       parameters:
-        - name: image.repository
-          value: ghcr.io/diogo-baptista/cicd-api
-        - name: image.tag
-          value: main
-        - name: service.type
-          value: LoadBalancer
+      - name: image.repository
+        value: ghcr.io/diogo-baptista/cicd-api
+      - name: image.tag
+        value: f86f8d49103eb6b0e1e5399130a1bb6921e46e80
+      - name: service.type
+        value: LoadBalancer
   destination:
     server: https://kubernetes.default.svc
     namespace: production
@@ -25,4 +26,4 @@ spec:
       prune: true
       selfHeal: true
     syncOptions:
-      - CreateNamespace=true
+    - CreateNamespace=true
