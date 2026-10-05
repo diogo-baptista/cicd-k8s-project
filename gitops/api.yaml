@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cicd-api-production
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/diogo-baptista/cicd-k8s-project.git
+    targetRevision: main
+    path: api-helm
+    helm:
+      parameters:
+        - name: image.repository
+          value: ghcr.io/diogo-baptista/cicd-api
+        - name: image.tag
+          value: main
+        - name: service.type
+          value: LoadBalancer
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: production
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

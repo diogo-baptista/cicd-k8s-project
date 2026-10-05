@@ -14,16 +14,17 @@ The project includes:
 - Local Docker Compose stack with API, Prometheus, and Grafana
 - Pytest coverage for the main API endpoints
 - Ruff linting and formatting checks
-- GitHub Actions CI for validation on `dev` and `main`
+- GitHub Actions CI for validation and publishing from `main`
 - Trivy vulnerability scanning for the container image
-- GHCR publishing for dev preview images and main release artifacts
+- GHCR publishing of immutable commit-SHA images from `main`
 - Helm chart packaging for Kubernetes deployments
-- Branch-based release flow with dev and main environments in mind
+- GitOps deployment of the `main` release to the production namespace
 
 Planned next steps:
 
 - Deploy to a local Kubernetes cluster using kind or k3d
-- Deploy the GHCR image through Helm into a dev cluster
+- Manage AKS and bootstrap Argo CD with Terraform
+- Deploy the production image through Argo CD from Git
 - Add production-style environment values and secrets handling
 - Add further cloud and Azure automation later
 
@@ -61,7 +62,7 @@ flowchart LR
 .
 ├── .github/
 │   └── workflows/
-│       └── ci.yml                 # CI workflow for dev/main branches
+│       └── ci.yml                 # CI and main-branch image publishing
 ├── app/
 │   ├── __init__.py
 │   ├── main.py                    # FastAPI app and metrics middleware
@@ -176,11 +177,14 @@ docker compose down
 
 ## GitHub Actions CI workflow
 
-The workflow is defined in `.github/workflows/ci.yml` and is set up for both `dev` and `main` branches.
+The workflow is defined in `.github/workflows/ci.yml`. Pushes and pull requests
+to `dev` and `main` run validation. Only pushes to `main` publish container
+images and update the production GitOps tag consumed by Argo CD; `dev` never
+deploys to the cluster.
 
 ### Build and validation job
 
-On both branches, the workflow runs:
+On both `dev` and `main`, the build job runs:
 
 1. checkout repository
 2. set up Python 3.12
@@ -194,16 +198,11 @@ On both branches, the workflow runs:
 
 ### Publish job
 
-The publish job runs on pushes to `dev` and `main` and does the following:
-
-- `dev` branch:
-  - builds the app image
-  - pushes a `:dev` image to GHCR for preview testing
-- `main` branch:
-  - builds the release image
-  - pushes the image to GHCR using the commit SHA tag
-  - packages the Helm chart
-  - pushes the chart to GHCR as an OCI artifact
+On pushes to `main`, the publish job builds and pushes the image with both a
+mutable `:main` bootstrap tag and an immutable commit-SHA tag, packages the Helm
+chart, pushes it to GHCR as an OCI artifact, and updates the image SHA in
+`gitops/api.yaml`. Argo CD then reconciles the production workload to that exact
+image. Only the commit-SHA tag is used after the first GitOps bootstrap.
 
 ## Security and quality decisions
 
@@ -245,16 +244,129 @@ Typical usage:
 
 ```bash
 helm lint api-helm
-helm template api-release api-helm --set image.tag=dev
+helm template api-release api-helm --set image.tag=main
 ```
 
 For a real deployment, you would point the chart to a registry image such as:
 
 ```bash
-ghcr.io/<your-user>/cicd-api:dev
+ghcr.io/<your-user>/cicd-api:main
 ```
 
 or the commit SHA tag on `main`.
+
+## Azure AKS deployment with Terraform
+
+This is the project's Azure deployment path: Terraform creates AKS, then a
+second Terraform root installs Argo CD. Argo CD deploys and reconciles the API
+from the `gitops/api.yaml` Application, using the Helm chart in `api-helm/`.
+The Terraform roots are separate because Argo CD needs kubeconfig for an
+existing cluster. The API chart uses an Azure LoadBalancer Service, so this
+portfolio setup has a public HTTP endpoint; HTTPS requires a domain or
+additional ingress and certificate configuration. The Argo CD UI stays
+private and is accessed with `kubectl port-forward`.
+
+Prerequisites: Azure CLI, Terraform 1.6+, Helm, an Azure subscription, and an
+SSH public key. The GHCR package `ghcr.io/diogo-baptista/cicd-api` must be
+public so AKS can pull images without storing registry credentials in Git.
+
+Log in to Azure and select the subscription:
+
+```bash
+az login
+az account set --subscription <subscription-id>
+export ARM_SUBSCRIPTION_ID="$(az account show --query id --output tsv)"
+```
+
+Check the remaining Azure trial credit and set up a Cost Management budget
+before creating resources. AKS's Free management tier has no cluster management
+charge, but its node VM, disk, public IP, and load balancer are billable while
+running.
+
+Create the AKS cluster:
+
+```bash
+cd terraform/aks
+terraform init
+terraform plan
+terraform apply
+```
+
+The default SSH key path is `~/.ssh/id_ed25519.pub`; override it with
+`-var='ssh_public_key_path=~/.ssh/id_rsa.pub'` if yours is elsewhere. Select a
+different region with `-var='location=westus2'`. Azure resources are named
+with the `cicd-api-prod` prefix and tagged `environment=production`.
+
+Fetch AKS credentials and install Argo CD:
+
+```bash
+az aks get-credentials \
+  --resource-group "$(terraform output -raw resource_group_name)" \
+  --name "$(terraform output -raw cluster_name)"
+cd ../app
+terraform init
+terraform plan
+terraform apply
+cd ../..
+```
+
+Bootstrap the Argo CD Application once. Argo CD then tracks `main`, syncs the
+API Helm chart, and self-heals drift:
+
+```bash
+kubectl apply -f gitops/api.yaml
+kubectl get applications -n argocd
+kubectl get pods,services -n production
+```
+
+The first sync uses the `main` bootstrap image tag. On each successful publish,
+GitHub Actions pushes an image tagged with the full commit SHA and updates
+`gitops/api.yaml`; Argo CD sees that Git change and rolls out the exact image.
+The workflow needs permission to push this GitOps update to `main`, and branch
+protection must allow that update.
+
+Access Argo CD without exposing its UI publicly:
+
+```bash
+kubectl port-forward service/argocd-server -n argocd 8080:443
+```
+
+Open `https://localhost:8080`. The initial username is `admin`; retrieve the
+generated password with:
+
+```bash
+kubectl get secret argocd-initial-admin-secret -n argocd \
+  -o jsonpath='{.data.password}' | base64 --decode
+```
+
+Get the API's external IP from the Service:
+
+```bash
+kubectl get services -n production
+curl "http://<external-ip>/healthz"
+```
+
+To destroy the deployment in the correct order, log in to Azure, select the
+subscription used to create the resources, then run:
+
+```bash
+bash scripts/destroy-azure.sh
+```
+
+The script checks the active subscription and local Terraform states, requires
+you to type `DESTROY`, removes Argo CD first, then AKS and its resource group.
+Terraform will also prompt before each destroy. If either state is empty or
+missing, the script stops rather than guessing which resources to remove. The
+API Service and cloud load balancer are removed with the cluster. AKS nodes,
+disks, and the load balancer are billable until deletion completes. Terraform
+state is local and ignored by Git; use a remote backend before sharing this
+deployment across a team.
+
+Changing the default resource prefix from the earlier `cicd-dev` values changes
+the Azure resource names. If you already applied the old configuration,
+carefully inspect `terraform plan`: Azure may need to replace the resource group
+and cluster. Destroy the old deployment deliberately before applying the
+production-named resources if the plan proposes replacement.
 
 ## Why Helm matters
 
@@ -283,11 +395,11 @@ This gives a basic foundation for service monitoring and later dashboarding in G
 
 Next practical milestones in this project:
 
-1. deploy to local Kubernetes with kind or k3d
-2. deploy the GHCR image via Helm
-3. test dev cluster behavior before merging to main
-4. add richer environment values and secrets management
-5. expand the application and chart to support a more production-like setup
+1. automate the AKS app deployment with GitHub Actions and Azure OIDC
+2. move Terraform state to an Azure Storage backend
+3. add a custom domain if one becomes available
+4. keep the AKS path as an optional Kubernetes learning exercise
+5. expand the application and chart as the portfolio grows
 
 ## Design Goals
 

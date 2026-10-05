@@ -1,9 +1,9 @@
 replicaCount: 2
 
 image:
-  repository: ghcr.io/diogo-baptista/cicd-k8s-project
+  repository: ghcr.io/diogo-baptista/cicd-api
   pullPolicy: IfNotPresent
-  tag: "latest"
+  tag: "main"
 
 imagePullSecrets: []
 nameOverride: ""
